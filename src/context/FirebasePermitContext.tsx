@@ -344,7 +344,11 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'تعذّر تسجيل الدخول بحساب Google.';
+      const code = (error as { code?: string })?.code;
+      let msg = error instanceof Error ? error.message : 'تعذّر تسجيل الدخول بحساب Google.';
+      if (code === 'auth/unauthorized-domain') {
+        msg = `هذا النطاق (${window.location.hostname}) غير مضاف ضمن النطاقات المصرح بها في Firebase Authentication.`;
+      }
       setAuthError(msg);
       throw error;
     }

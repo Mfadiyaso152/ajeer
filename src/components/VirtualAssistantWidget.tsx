@@ -49,19 +49,30 @@ interface ChatMessage {
   timeLabel: string;
 }
 
-const ChatBubbleSvg: React.FC<{ className?: string }> = ({ className = 'w-7 h-7' }) => (
+const ChatBubbleSvg: React.FC<{ className?: string }> = ({ className = 'w-9 h-9' }) => (
   <svg
-    viewBox="0 0 32 32"
+    viewBox="0 0 40 40"
     fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
     className={className}
     aria-hidden="true"
   >
-    <path d="M16 5C9.925 5 5 9.142 5 14.25c0 2.385 1.073 4.558 2.838 6.197L6.5 25.5l4.98-1.66A12.3 12.3 0 0 0 16 24.7c6.075 0 11-4.142 11-9.25S22.075 5 16 5Z" />
-    <path d="M12.5 14.25a3.5 3.5 0 1 0 7 0 3.5 3.5 0 1 0-7 0Z" />
+    {/* Back larger speech bubble with tail on bottom-left */}
+    <path
+      d="M19.5 8C12.596 8 7 12.94 7 19.03c0 2.52.96 4.84 2.58 6.69L8.2 30.2l4.98-1.68c1.91.85 4.06 1.33 6.32 1.33 6.904 0 12.5-4.94 12.5-11.03C32 12.94 26.404 8 19.5 8Z"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* Front smaller overlapping speech bubble with green mask fill & white outline */}
+    <path
+      d="M25.5 18.2c-4.142 0-7.5 3.01-7.5 6.72 0 3.71 3.358 6.72 7.5 6.72 1.34 0 2.6-.32 3.69-.87l3.11 1.03-.88-2.76c1.01-1.15 1.58-2.57 1.58-4.12 0-3.71-3.358-6.72-7.5-6.72Z"
+      fill="#2F9454"
+      stroke="currentColor"
+      strokeWidth="2.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -231,8 +242,7 @@ export const VirtualAssistantWidget: React.FC = () => {
       botReply =
         'لحفظ التصريح كملف PDF، استخدم خيار الطباعة من المتصفح (Ctrl+P) ثم اختر «حفظ بتنسيق PDF».';
     } else if (trimmed.includes('تعديل') || trimmed.includes('لوحة') || trimmed.includes('شعار')) {
-      botReply =
-        'يمكنك الدخول إلى لوحة التحكم لتعديل البيانات والشعار بإضافة #admin في نهاية الرابط أو بالضغط على Ctrl+Shift+A.';
+      botReply = 'يمكنك الدخول إلى لوحة الإدارة من الصفحة الرئيسية للموقع لتعديل بيانات التصاريح أو إضافة تصريح جديد.';
     } else if (savedToCloud) {
       botReply = 'تم استلام استفسارك وحفظه بنجاح. كيف يمكنني مساعدتك أيضاً؟';
     }
@@ -265,15 +275,15 @@ export const VirtualAssistantWidget: React.FC = () => {
 
   return (
     <>
-      {/* Green Floating Chat Launcher (Bottom-Left, exact match to screenshot) */}
+      {/* Green Floating Chat Launcher (Bottom-Left, slightly larger matching reference icon) */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={isOpen ? 'إغلاق المساعد الافتراضي' : 'فتح المساعد الافتراضي'}
         aria-expanded={isOpen}
-        className="no-print fixed bottom-5 left-5 z-40 w-14 h-14 rounded-full bg-[#389E5C] hover:bg-[#2E854C] text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
+        className="no-print fixed bottom-5 left-5 z-40 w-[68px] h-[68px] rounded-full bg-[#2F9454] hover:bg-[#277D46] text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 cursor-pointer"
       >
-        <ChatBubbleSvg className="w-7 h-7" />
+        <ChatBubbleSvg className="w-10 h-10" />
       </button>
 
       {/* Virtual Assistant Drawer / Modal matching the 4 reference chat screenshots */}
@@ -281,13 +291,13 @@ export const VirtualAssistantWidget: React.FC = () => {
         <section
           dir="rtl"
           aria-label="مساعدك الافتراضي"
-          className="no-print fixed bottom-22 left-3 right-3 sm:right-auto sm:left-5 sm:w-[390px] max-h-[82vh] z-50 flex flex-col rounded-2xl overflow-hidden bg-[#f5f7f6] border border-gray-200 shadow-2xl"
+          className="no-print fixed bottom-24 left-3 right-3 sm:right-auto sm:left-5 sm:w-[390px] max-h-[80vh] z-50 flex flex-col rounded-2xl overflow-hidden bg-[#f5f7f6] border border-gray-200 shadow-2xl"
         >
           {/* Header Bar */}
           <div className="bg-white px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[#389E5C] text-white flex items-center justify-center shrink-0">
-                <ChatBubbleSvg className="w-5 h-5" />
+              <div className="w-11 h-11 rounded-full bg-[#2F9454] text-white flex items-center justify-center shrink-0">
+                <ChatBubbleSvg className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-[#111827] truncate">
                 مساعدك الافتراضي
