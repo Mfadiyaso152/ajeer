@@ -29,7 +29,7 @@ interface AdminDashboardPanelProps {
 
 const EMPTY_NEW_PERMIT: PermitData = {
   permitNumber: '',
-  permitType: 'عقد أجير',
+  permitType: '',
   startDate: '',
   endDate: '',
   verificationStatus: 'ساري / فعال',
@@ -126,8 +126,10 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     }
   }, [allPermits, editingId, mode]);
 
+  const SITE_BASE_URL = 'https://ajeer-seven.vercel.app';
+
   const getFullPermitUrl = (slug: string): string => {
-    return `${window.location.origin}/${slug}`;
+    return `${SITE_BASE_URL}/${slug}`;
   };
 
   const handleCopyUrl = async (slug: string) => {
@@ -201,7 +203,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     const cleanPermitNumber = data.permitNumber.trim();
     if (!cleanPermitNumber) return 'يرجى إدخال رقم التصريح (حقل إجباري).';
     if (!isValidPermitSlug(cleanPermitNumber)) {
-      return 'رقم التصريح يجب أن يتكون من أحرف إنجليزية وأرقام أو (- / _) فقط بدون مسافات لأنه يُستخدم كرابط للصفحة (مثال: TW6419508).';
+      return 'رقم التصريح يجب أن يتكون من أحرف إنجليزية وأرقام أو (- / _) فقط بدون مسافات لأنه يُستخدم كرابط للصفحة.';
     }
     const duplicateExists = allPermits.some(
       (item) =>
@@ -646,18 +648,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                   : `تعديل بيانات التصريح (/${editingId})`}
               </h3>
               <div className="flex items-center gap-3">
-                {mode === 'create' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraft({ ...DEFAULT_PERMIT_DATA, permitNumber: '' });
-                      setFeedback(null);
-                    }}
-                    className="text-xs font-semibold text-[#1e7a43] hover:underline"
-                  >
-                    تعبئة بيانات نموذجية
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -688,7 +678,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     required
                     pattern="[A-Za-z0-9_-]+"
                     title="أحرف إنجليزية وأرقام أو (- / _) فقط بدون مسافات"
-                    placeholder="مثال: TW6419508"
                     maxLength={PERMIT_FIELD_LIMITS.permitNumber}
                     value={draft.permitNumber}
                     onChange={(e) => updateField('permitNumber', e.target.value)}
@@ -709,8 +698,8 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                   ) : (
                     <p className="mt-1 text-[11px] text-gray-500">
                       رابط الصفحة:{' '}
-                      <span dir="ltr" className="font-mono font-semibold text-gray-700">
-                        /{trimmedPermitNumber || '...'}
+                      <span dir="ltr" className="font-mono font-semibold text-gray-700 break-all">
+                        {SITE_BASE_URL}/{trimmedPermitNumber || '...'}
                       </span>
                     </p>
                   )}
@@ -723,7 +712,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="permitType"
                     type="text"
                     required
-                    placeholder="مثال: عقد أجير"
                     maxLength={PERMIT_FIELD_LIMITS.permitType}
                     value={draft.permitType}
                     onChange={(e) => updateField('permitType', e.target.value)}
@@ -805,7 +793,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="workerName"
                     type="text"
                     required
-                    placeholder="الاسم الكامل للعامل"
                     maxLength={PERMIT_FIELD_LIMITS.workerName}
                     value={draft.workerName}
                     onChange={(e) => updateField('workerName', e.target.value)}
@@ -821,7 +808,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     type="text"
                     dir="ltr"
                     required
-                    placeholder="مثال: 2174090627"
                     maxLength={PERMIT_FIELD_LIMITS.workerIdNumber}
                     value={draft.workerIdNumber}
                     onChange={(e) => updateField('workerIdNumber', e.target.value)}
@@ -836,7 +822,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="nationality"
                     type="text"
                     required
-                    placeholder="مثال: سوريا"
                     maxLength={PERMIT_FIELD_LIMITS.nationality}
                     value={draft.nationality}
                     onChange={(e) => updateField('nationality', e.target.value)}
@@ -851,7 +836,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="occupation"
                     type="text"
                     required
-                    placeholder="مثال: مندوب مبيعات"
                     maxLength={PERMIT_FIELD_LIMITS.occupation}
                     value={draft.occupation}
                     onChange={(e) => updateField('occupation', e.target.value)}
@@ -903,7 +887,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="firstEstablishmentName"
                     type="text"
                     required
-                    placeholder="مثال: شركة واترماستر المحدودة"
                     maxLength={PERMIT_FIELD_LIMITS.firstEstablishmentName}
                     value={draft.firstEstablishmentName}
                     onChange={(e) => updateField('firstEstablishmentName', e.target.value)}
@@ -919,7 +902,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     type="text"
                     dir="ltr"
                     required
-                    placeholder="مثال: 1-2902058"
                     maxLength={PERMIT_FIELD_LIMITS.firstEstablishmentNumber}
                     value={draft.firstEstablishmentNumber}
                     onChange={(e) => updateField('firstEstablishmentNumber', e.target.value)}
@@ -934,7 +916,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     id="secondEstablishmentName"
                     type="text"
                     required
-                    placeholder="مثال: مؤسسة نماذج التميز للمقاولات"
                     maxLength={PERMIT_FIELD_LIMITS.secondEstablishmentName}
                     value={draft.secondEstablishmentName}
                     onChange={(e) => updateField('secondEstablishmentName', e.target.value)}
@@ -950,7 +931,6 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     type="text"
                     dir="ltr"
                     required
-                    placeholder="مثال: 1-1496479"
                     maxLength={PERMIT_FIELD_LIMITS.secondEstablishmentNumber}
                     value={draft.secondEstablishmentNumber}
                     onChange={(e) => updateField('secondEstablishmentNumber', e.target.value)}
