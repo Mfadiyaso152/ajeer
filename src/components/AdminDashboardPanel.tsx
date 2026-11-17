@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
   Copy,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useFirebasePermit } from '../context/FirebasePermitContext';
 import { DEFAULT_PERMIT_DATA } from '../data/defaultPermit';
-import { BOOTSTRAPPED_ADMIN_EMAIL, DEFAULT_PERMIT_DOC_ID } from '../lib/firebase';
+import { BOOTSTRAPPED_ADMIN_EMAIL } from '../lib/firebase';
 import { PERMIT_FIELD_LIMITS, PermitData, isValidPermitSlug } from '../types/permit';
 import { MockPlatformLogo } from './MockLogos';
 import { PermitDocumentView } from './PermitDocumentView';
@@ -106,7 +107,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
   } = useFirebasePermit();
 
   const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
-  const [editingId, setEditingId] = useState<string>(DEFAULT_PERMIT_DOC_ID);
+  const [editingId, setEditingId] = useState<string>(DEFAULT_PERMIT_DATA.permitNumber);
   const [draft, setDraft] = useState<PermitData>(DEFAULT_PERMIT_DATA);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -186,11 +187,30 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     }
   };
 
+  const trimmedPermitNumber = draft.permitNumber.trim();
+  const isDuplicatePermitNumber =
+    Boolean(trimmedPermitNumber) &&
+    allPermits.some(
+      (item) =>
+        (mode === 'create' || item.id !== editingId) &&
+        (item.id.toLowerCase() === trimmedPermitNumber.toLowerCase() ||
+          item.data.permitNumber.trim().toLowerCase() === trimmedPermitNumber.toLowerCase()),
+    );
+
   const validateRequiredFields = (data: PermitData): string | null => {
-    const trimmedPermitNumber = data.permitNumber.trim();
-    if (!trimmedPermitNumber) return 'يرجى إدخال رقم التصريح (حقل إجباري).';
-    if (!isValidPermitSlug(trimmedPermitNumber)) {
+    const cleanPermitNumber = data.permitNumber.trim();
+    if (!cleanPermitNumber) return 'يرجى إدخال رقم التصريح (حقل إجباري).';
+    if (!isValidPermitSlug(cleanPermitNumber)) {
       return 'رقم التصريح يجب أن يتكون من أحرف إنجليزية وأرقام أو (- / _) فقط بدون مسافات لأنه يُستخدم كرابط للصفحة (مثال: TW6419508).';
+    }
+    const duplicateExists = allPermits.some(
+      (item) =>
+        (mode === 'create' || item.id !== editingId) &&
+        (item.id.toLowerCase() === cleanPermitNumber.toLowerCase() ||
+          item.data.permitNumber.trim().toLowerCase() === cleanPermitNumber.toLowerCase()),
+    );
+    if (duplicateExists) {
+      return `تنبيه: رقم التصريح "${cleanPermitNumber}" مسجل مسبقاً! يرجى إدخال رقم تصريح جديد غير مكرر.`;
     }
     if (!data.permitType.trim()) return 'يرجى إدخال نوع التصريح.';
     if (!data.startDate.trim()) return 'يرجى إدخال تاريخ بداية التصريح.';
@@ -398,14 +418,18 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
 
       {feedback && (
         <div
-          role="status"
+          role={feedback.type === 'error' ? 'alert' : 'status'}
           className={`p-3.5 rounded-xl border text-sm font-medium flex items-center gap-2 ${
             feedback.type === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-red-50 border-red-300 text-red-800'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          {feedback.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" aria-hidden="true" />
+          )}
           <span>{feedback.text}</span>
         </div>
       )}
@@ -481,7 +505,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {allPermits.map((item) => {
                 const fullUrl = getFullPermitUrl(item.id);
-                const isDefault = item.id === DEFAULT_PERMIT_DOC_ID;
+                const isPrimary = item.id === DEFAULT_PERMIT_DATA.permitNumber;
                 return (
                   <div
                     key={item.id}
@@ -490,8 +514,13 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h3 className="text-base font-bold text-gray-950">
-                            {item.data.workerName}
+                          <h3 className="text-base font-bold text-gray-950 flex items-center gap-2">
+                            <span>{item.data.workerName}</span>
+                            {isPrimary && (
+                              <span className="text-[11px] font-semibold text-[#0B2240] bg-slate-100 px-2 py-0.5 rounded">
+                                التصريح الأساسي
+                              </span>
+                            )}
                           </h3>
                           <p className="text-xs text-gray-500 mt-0.5">
                             رقم الهوية:{' '}
@@ -569,38 +598,36 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                         </button>
                       </div>
 
-                      {!isDefault && (
-                        <div>
-                          {confirmDeleteId === item.id ? (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => void handleDeletePermit(item.id)}
-                                className="px-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
-                              >
-                                تأكيد الحذف
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600"
-                              >
-                                إلغاء
-                              </button>
-                            </div>
-                          ) : (
+                      <div>
+                        {confirmDeleteId === item.id ? (
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => setConfirmDeleteId(item.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
+                              disabled={saving}
+                              onClick={() => void handleDeletePermit(item.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
                             >
-                              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                              <span>حذف</span>
+                              تأكيد الحذف
                             </button>
-                          )}
-                        </div>
-                      )}
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600"
+                            >
+                              إلغاء
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(item.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                            <span>حذف</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -665,14 +692,28 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                     maxLength={PERMIT_FIELD_LIMITS.permitNumber}
                     value={draft.permitNumber}
                     onChange={(e) => updateField('permitNumber', e.target.value)}
-                    className={`${inputClass} tabular-nums`}
+                    className={`${inputClass} tabular-nums ${
+                      isDuplicatePermitNumber ? 'border-red-500 bg-red-50/40 focus:border-red-600' : ''
+                    }`}
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    رابط الصفحة:{' '}
-                    <span dir="ltr" className="font-mono font-semibold text-gray-700">
-                      /{draft.permitNumber.trim() || '...'}
-                    </span>
-                  </p>
+                  {isDuplicatePermitNumber ? (
+                    <div
+                      role="alert"
+                      className="mt-1.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        تنبيه: رقم التصريح «{trimmedPermitNumber}» مسجل مسبقاً، يرجى كتابة رقم آخر.
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-gray-500">
+                      رابط الصفحة:{' '}
+                      <span dir="ltr" className="font-mono font-semibold text-gray-700">
+                        /{trimmedPermitNumber || '...'}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="permitType" className={labelClass}>

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import {
   addDoc,
@@ -7,7 +7,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
@@ -33,7 +32,6 @@ interface FirebasePermitContextValue {
   permit: PermitData;
   allPermits: PermitListItem[];
   loadingPermitsList: boolean;
-  loadingPermit: boolean;
   user: User | null;
   authReady: boolean;
   isAdmin: boolean;
@@ -84,17 +82,16 @@ function mapDocToPermitData(data: Record<string, unknown>): PermitData {
   });
 }
 
-
 export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [permit, setPermit] = useState<PermitData>(DEFAULT_PERMIT_DATA);
   const [allPermits, setAllPermits] = useState<PermitListItem[]>([]);
   const [loadingPermitsList, setLoadingPermitsList] = useState<boolean>(false);
-  const [loadingPermit, setLoadingPermit] = useState<boolean>(true);
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const hasBootstrappedPrimaryRef = useRef<boolean>(false);
 
   useEffect(() => {
     void testConnection();
@@ -115,71 +112,15 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
       } else {
         setIsAdmin(false);
         setAllPermits([]);
+        hasBootstrappedPrimaryRef.current = false;
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Load main default permit record
-  useEffect(() => {
-    if (!authReady) return;
-    let active = true;
-    const permitPath = `permits/${DEFAULT_PERMIT_DOC_ID}`;
-    const permitRef = doc(db, 'permits', DEFAULT_PERMIT_DOC_ID);
-
-    if (!user) {
-      const loadPublicPermit = async () => {
-        setLoadingPermit(true);
-        try {
-          const snap = await getDoc(permitRef);
-          if (!active) return;
-          if (snap.exists()) {
-            setPermit(mapDocToPermitData(snap.data() as Record<string, unknown>));
-          } else {
-            setPermit(DEFAULT_PERMIT_DATA);
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, permitPath);
-        } finally {
-          if (active) {
-            setLoadingPermit(false);
-          }
-        }
-      };
-      void loadPublicPermit();
-      return () => {
-        active = false;
-      };
-    }
-
-    const unsubscribe = onSnapshot(
-      permitRef,
-      (snap) => {
-        if (!active) return;
-        if (snap.exists()) {
-          setPermit(mapDocToPermitData(snap.data() as Record<string, unknown>));
-        } else {
-          setPermit(DEFAULT_PERMIT_DATA);
-        }
-        setLoadingPermit(false);
-      },
-      (error) => {
-        if (active) {
-          setLoadingPermit(false);
-        }
-        handleFirestoreError(error, OperationType.GET, permitPath);
-      },
-    );
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [authReady, user]);
-
   const refreshAllPermits = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !user) return;
     setLoadingPermitsList(true);
     try {
       const snap = await getDocs(collection(db, 'permits'));
@@ -190,13 +131,59 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
           data: mapDocToPermitData(docSnap.data() as Record<string, unknown>),
         });
       });
+
+      // Migrate legacy default_demo doc if it exists so the primary permit lives under its permitNumber slug
+      const legacyDefaultIndex = items.findIndex((item) => item.id === DEFAULT_PERMIT_DOC_ID);
+      if (legacyDefaultIndex !== -1) {
+        const legacyItem = items[legacyDefaultIndex];
+        const targetSlug = isValidPermitSlug(legacyItem.data.permitNumber)
+          ? legacyItem.data.permitNumber.trim()
+          : DEFAULT_PERMIT_DATA.permitNumber;
+        const migratedData = sanitizePermitPayload({
+          ...legacyItem.data,
+          permitNumber: targetSlug,
+        });
+        const targetExists = items.some((item) => item.id === targetSlug);
+        if (!targetExists) {
+          await setDoc(doc(db, 'permits', targetSlug), {
+            ...migratedData,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+          });
+          items[legacyDefaultIndex] = { id: targetSlug, data: migratedData };
+        } else {
+          items.splice(legacyDefaultIndex, 1);
+        }
+        try {
+          await deleteDoc(doc(db, 'permits', DEFAULT_PERMIT_DOC_ID));
+        } catch {
+          // Ignore if legacy document deletion is restricted
+        }
+      }
+
+      // Ensure the primary permit exists on first admin load when no permits are saved yet
+      if (items.length === 0 && !hasBootstrappedPrimaryRef.current) {
+        hasBootstrappedPrimaryRef.current = true;
+        const primarySlug = DEFAULT_PERMIT_DATA.permitNumber;
+        const primaryData = sanitizePermitPayload(DEFAULT_PERMIT_DATA);
+        await setDoc(doc(db, 'permits', primarySlug), {
+          ...primaryData,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.uid,
+        });
+        items.push({ id: primarySlug, data: primaryData });
+        setPermit(primaryData);
+      } else {
+        hasBootstrappedPrimaryRef.current = true;
+      }
+
       setAllPermits(items);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'permits');
     } finally {
       setLoadingPermitsList(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, user]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -233,13 +220,24 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         );
       }
 
+      const duplicateInList = allPermits.some(
+        (item) =>
+          item.id.toLowerCase() === slug.toLowerCase() ||
+          item.data.permitNumber.trim().toLowerCase() === slug.toLowerCase(),
+      );
+      if (duplicateInList) {
+        throw new Error(
+          `تنبيه: رقم التصريح "${slug}" مسجل مسبقاً! يرجى إدخال رقم تصريح جديد غير مكرر.`,
+        );
+      }
+
       setSaving(true);
       try {
         const permitPath = `permits/${slug}`;
         const existingSnap = await getDoc(doc(db, 'permits', slug));
         if (existingSnap.exists()) {
           throw new Error(
-            'يوجد تصريح مسجل مسبقاً بنفس رقم التصريح هذا. يرجى إدخال رقم مختلف أو تعديل التصريح الموجود.',
+            `تنبيه: رقم التصريح "${slug}" مسجل مسبقاً! يرجى إدخال رقم تصريح جديد غير مكرر.`,
           );
         }
 
@@ -260,7 +258,7 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         setSaving(false);
       }
     },
-    [user, refreshAllPermits],
+    [user, allPermits, refreshAllPermits],
   );
 
   const updatePermitById = useCallback(
@@ -275,6 +273,18 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         );
       }
 
+      if (nextSlug !== permitId) {
+        const duplicateInList = allPermits.some(
+          (item) =>
+            item.id !== permitId &&
+            (item.id.toLowerCase() === nextSlug.toLowerCase() ||
+              item.data.permitNumber.trim().toLowerCase() === nextSlug.toLowerCase()),
+        );
+        if (duplicateInList) {
+          throw new Error(`تنبيه: يوجد تصريح آخر مسجل مسبقاً برقم "${nextSlug}".`);
+        }
+      }
+
       setSaving(true);
       const targetPath = `permits/${nextSlug}`;
       try {
@@ -282,16 +292,14 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         if (nextSlug !== permitId) {
           const existingSnap = await getDoc(doc(db, 'permits', nextSlug));
           if (existingSnap.exists()) {
-            throw new Error('يوجد تصريح آخر مسجل مسبقاً برقم التصريح الجديد.');
+            throw new Error(`تنبيه: يوجد تصريح آخر مسجل مسبقاً برقم "${nextSlug}".`);
           }
           await setDoc(doc(db, 'permits', nextSlug), {
             ...sanitized,
             updatedAt: serverTimestamp(),
             updatedBy: user.uid,
           });
-          if (permitId !== DEFAULT_PERMIT_DOC_ID) {
-            await deleteDoc(doc(db, 'permits', permitId));
-          }
+          await deleteDoc(doc(db, 'permits', permitId));
         } else {
           await setDoc(doc(db, 'permits', permitId), {
             ...sanitized,
@@ -300,13 +308,10 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
           });
         }
 
-        if (nextSlug === DEFAULT_PERMIT_DOC_ID) {
-          setPermit(sanitized);
-        }
         await refreshAllPermits();
         return nextSlug;
       } catch (error) {
-        if (error instanceof Error && error.message.includes('يوجد تصريح')) {
+        if (error instanceof Error && error.message.includes('تنبيه:')) {
           throw error;
         }
         handleFirestoreError(error, OperationType.WRITE, targetPath);
@@ -314,16 +319,13 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         setSaving(false);
       }
     },
-    [user, refreshAllPermits],
+    [user, allPermits, refreshAllPermits],
   );
 
   const deletePermitById = useCallback(
     async (permitId: string): Promise<void> => {
       if (!user || user.email !== BOOTSTRAPPED_ADMIN_EMAIL) {
         throw new Error('الدخول والتعديل مصرح به فقط لحساب mfb.15.f@gmail.com.');
-      }
-      if (permitId === DEFAULT_PERMIT_DOC_ID) {
-        throw new Error('لا يمكن حذف التصريح الافتراضي الرئيسي.');
       }
       setSaving(true);
       const permitPath = `permits/${permitId}`;
@@ -389,7 +391,6 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
         permit,
         allPermits,
         loadingPermitsList,
-        loadingPermit,
         user,
         authReady,
         isAdmin,

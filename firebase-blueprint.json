@@ -254,7 +254,7 @@
       "schema": {
         "$ref": "#/entities/PermitRecord"
       },
-      "description": "Stores permit records; 'default_demo' is publicly readable and writable only by the authorized admin."
+      "description": "Stores permit records keyed by permitNumber slug; publicly readable by exact document ID and writable only by the authorized admin."
     },
     "/pages/{pageId}": {
       "schema": {

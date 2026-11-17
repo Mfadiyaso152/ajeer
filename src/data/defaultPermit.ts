@@ -1,7 +1,7 @@
 import { PermitData } from '../types/permit';
 
 export const DEFAULT_PERMIT_DATA: PermitData = {
-  permitNumber: 'غير مقدم',
+  permitNumber: 'TW6419508',
   permitType: 'عقد أجير',
   startDate: '2026-09-11',
   endDate: '2027-05-16',

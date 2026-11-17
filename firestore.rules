@@ -157,7 +157,7 @@ service cloud.firestore {
           'updatedAt',
           'updatedBy'
         ]);
-      allow delete: if isValidId(permitId) && isAdmin() && permitId != 'default_demo';
+      allow delete: if isValidId(permitId) && isAdmin();
     }
 
     match /pages/{pageId} {
