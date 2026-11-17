@@ -11,12 +11,26 @@ import { PermitData } from './types/permit';
 
 function normalizePath(rawPath: string): string {
   const clean = rawPath.split('?')[0].split('#')[0].replace(/\/+$/, '');
-  return clean || '/';
+  if (!clean) return '/';
+  try {
+    return decodeURIComponent(clean);
+  } catch {
+    return clean;
+  }
 }
 
 function getInitialPath(): string {
-  if (window.location.hash.toLowerCase() === '#admin') {
+  const params = new URLSearchParams(window.location.search);
+  const queryPermit = params.get('permit') || params.get('p');
+  if (queryPermit) {
+    return normalizePath(`/${queryPermit}`);
+  }
+  const hash = window.location.hash;
+  if (hash.toLowerCase() === '#admin') {
     return '/admin';
+  }
+  if (hash.startsWith('#/')) {
+    return normalizePath(hash.slice(1));
   }
   return normalizePath(window.location.pathname);
 }
