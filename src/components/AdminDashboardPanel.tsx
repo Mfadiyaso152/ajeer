@@ -44,7 +44,7 @@ const EMPTY_NEW_PERMIT: PermitData = {
   secondEstablishmentName: '',
   secondEstablishmentNumber: '',
   customLogoDataUrl: '',
-  platformTitle: 'التحقق من تصريح',
+  platformTitle: 'التحقق من تصريح أجير',
   platformSubtitle: 'تم التحقق من التصريح بنجاح.',
 };
 
