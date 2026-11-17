@@ -1,0 +1,6 @@
+{
+  "name": "بوابة تصريح العمل التجريبية",
+  "description": "نموذج عرض تجريبي غير رسمي لبيانات تصريح العمل بتصميم عربي متجاوب ولوحة تحكم سحابية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

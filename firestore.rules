@@ -1,0 +1,177 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'mfb.15.f@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidDateString(val) {
+      return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    // --- Validation Blueprints ---
+    function isValidPermitRecord(data) {
+      let requiredKeys = [
+        'permitNumber',
+        'permitType',
+        'startDate',
+        'endDate',
+        'verificationStatus',
+        'workerName',
+        'workerIdNumber',
+        'nationality',
+        'occupation',
+        'gender',
+        'birthDate',
+        'firstEstablishmentName',
+        'firstEstablishmentNumber',
+        'secondEstablishmentName',
+        'secondEstablishmentNumber',
+        'customLogoDataUrl',
+        'platformTitle',
+        'platformSubtitle',
+        'updatedAt',
+        'updatedBy'
+      ];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().hasOnly(requiredKeys)
+        && data.permitNumber is string && data.permitNumber.size() >= 1 && data.permitNumber.size() <= 80
+        && data.permitType is string && data.permitType.size() >= 1 && data.permitType.size() <= 80
+        && isValidDateString(data.startDate)
+        && isValidDateString(data.endDate)
+        && data.verificationStatus is string && data.verificationStatus.size() >= 1 && data.verificationStatus.size() <= 120
+        && data.workerName is string && data.workerName.size() >= 1 && data.workerName.size() <= 120
+        && data.workerIdNumber is string && data.workerIdNumber.size() >= 1 && data.workerIdNumber.size() <= 40
+        && data.nationality is string && data.nationality.size() >= 1 && data.nationality.size() <= 60
+        && data.occupation is string && data.occupation.size() >= 1 && data.occupation.size() <= 100
+        && data.gender is string && data.gender.size() >= 1 && data.gender.size() <= 30
+        && isValidDateString(data.birthDate)
+        && data.firstEstablishmentName is string && data.firstEstablishmentName.size() >= 1 && data.firstEstablishmentName.size() <= 150
+        && data.firstEstablishmentNumber is string && data.firstEstablishmentNumber.size() >= 1 && data.firstEstablishmentNumber.size() <= 60
+        && data.secondEstablishmentName is string && data.secondEstablishmentName.size() >= 1 && data.secondEstablishmentName.size() <= 150
+        && data.secondEstablishmentNumber is string && data.secondEstablishmentNumber.size() >= 1 && data.secondEstablishmentNumber.size() <= 60
+        && data.customLogoDataUrl is string && data.customLogoDataUrl.size() <= 180000
+        && data.platformTitle is string && data.platformTitle.size() >= 1 && data.platformTitle.size() <= 120
+        && data.platformSubtitle is string && data.platformSubtitle.size() >= 1 && data.platformSubtitle.size() <= 180
+        && data.updatedAt is timestamp
+        && data.updatedBy is string && data.updatedBy == request.auth.uid && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    function isValidAdminUser(data) {
+      let keys = ['email', 'displayName', 'role', 'createdAt'];
+      return data.keys().hasAll(keys)
+        && data.keys().hasOnly(keys)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role == 'admin'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSupportInquiry(data) {
+      let keys = ['userId', 'serviceTopic', 'message', 'createdAt'];
+      return data.keys().hasAll(keys)
+        && data.keys().hasOnly(keys)
+        && data.userId is string && data.userId == request.auth.uid && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.serviceTopic is string && data.serviceTopic.size() >= 1 && data.serviceTopic.size() <= 120
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 1000
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /permits/{permitId} {
+      allow get: if isValidId(permitId) && (permitId == 'default_demo' || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(permitId)
+        && isAdmin()
+        && isValidPermitRecord(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(permitId)
+        && isAdmin()
+        && isValidPermitRecord(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'permitNumber',
+          'permitType',
+          'startDate',
+          'endDate',
+          'verificationStatus',
+          'workerName',
+          'workerIdNumber',
+          'nationality',
+          'occupation',
+          'gender',
+          'birthDate',
+          'firstEstablishmentName',
+          'firstEstablishmentNumber',
+          'secondEstablishmentName',
+          'secondEstablishmentNumber',
+          'customLogoDataUrl',
+          'platformTitle',
+          'platformSubtitle',
+          'updatedAt',
+          'updatedBy'
+        ]);
+      allow delete: if isValidId(permitId) && isAdmin() && permitId != 'default_demo';
+    }
+
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && isVerifiedUser() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isAdmin()
+        && isValidAdminUser(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(userId)
+        && isAdmin()
+        && isValidAdminUser(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'role']);
+      allow delete: if isValidId(userId) && isAdmin() && userId != request.auth.uid;
+    }
+
+    match /supportInquiries/{inquiryId} {
+      allow get: if isValidId(inquiryId) && isVerifiedUser() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(inquiryId)
+        && isVerifiedUser()
+        && isValidSupportInquiry(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+  }
+}

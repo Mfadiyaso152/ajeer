@@ -1,0 +1,235 @@
+{
+  "entities": {
+    "PermitRecord": {
+      "title": "PermitRecord",
+      "description": "Work permit demonstration record containing permit metadata, worker details, two establishment records, and optional custom logo.",
+      "type": "object",
+      "properties": {
+        "permitNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Permit reference number or 'غير مقدم'."
+        },
+        "permitType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Type of work permit."
+        },
+        "startDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Permit start date in YYYY-MM-DD format."
+        },
+        "endDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Permit end date in YYYY-MM-DD format."
+        },
+        "verificationStatus": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Non-governmental demonstration status label."
+        },
+        "workerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Full name of the worker."
+        },
+        "workerIdNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "National ID or Iqama number."
+        },
+        "nationality": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Worker nationality."
+        },
+        "occupation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Worker occupation title."
+        },
+        "gender": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "description": "Worker gender."
+        },
+        "birthDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Worker birth date in YYYY-MM-DD format."
+        },
+        "firstEstablishmentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150,
+          "description": "First establishment name."
+        },
+        "firstEstablishmentNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "First establishment registration number."
+        },
+        "secondEstablishmentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150,
+          "description": "Second establishment name."
+        },
+        "secondEstablishmentNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Second establishment registration number."
+        },
+        "customLogoDataUrl": {
+          "type": "string",
+          "maxLength": 180000,
+          "description": "Optional compressed custom logo data URL or empty string for default logo."
+        },
+        "platformTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Header display title for the demo permit page."
+        },
+        "platformSubtitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "Explanatory disclaimer subtitle."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last update."
+        },
+        "updatedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID of the admin user who last updated the record."
+        }
+      },
+      "required": [
+        "permitNumber",
+        "permitType",
+        "startDate",
+        "endDate",
+        "verificationStatus",
+        "workerName",
+        "workerIdNumber",
+        "nationality",
+        "occupation",
+        "gender",
+        "birthDate",
+        "firstEstablishmentName",
+        "firstEstablishmentNumber",
+        "secondEstablishmentName",
+        "secondEstablishmentNumber",
+        "customLogoDataUrl",
+        "platformTitle",
+        "platformSubtitle",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized admin profile record.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200,
+          "description": "Verified admin email."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Admin display name."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Role identifier."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when admin was added."
+        }
+      },
+      "required": ["email", "displayName", "role", "createdAt"]
+    },
+    "SupportInquiry": {
+      "title": "SupportInquiry",
+      "description": "Support message submitted by an authenticated user through the virtual assistant chat.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Authenticated user UID."
+        },
+        "serviceTopic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Selected virtual assistant service topic."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "User inquiry text."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of inquiry submission."
+        }
+      },
+      "required": ["userId", "serviceTopic", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/permits/{permitId}": {
+      "schema": {
+        "$ref": "#/entities/PermitRecord"
+      },
+      "description": "Stores work permit demonstration records; 'default_demo' is publicly readable and writable only by verified admins."
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AdminUser"
+      },
+      "description": "Authorized admin registry."
+    },
+    "/supportInquiries/{inquiryId}": {
+      "schema": {
+        "$ref": "#/entities/SupportInquiry"
+      },
+      "description": "User support inquiries submitted from the chat widget."
+    }
+  }
+}
