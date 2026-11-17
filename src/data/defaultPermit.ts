@@ -17,6 +17,6 @@ export const DEFAULT_PERMIT_DATA: PermitData = {
   secondEstablishmentName: 'مؤسسة نماذج التميز للمقاولات',
   secondEstablishmentNumber: '1-1496479',
   customLogoDataUrl: '',
-  platformTitle: 'التحقق من تصريح',
+  platformTitle: 'التحقق من تصريح أجير',
   platformSubtitle: 'تم التحقق من التصريح بنجاح.',
 };

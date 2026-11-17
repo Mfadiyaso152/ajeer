@@ -114,7 +114,7 @@ export function sanitizePermitPayload(raw: PermitData): PermitData {
     platformTitle: trimClamp(
       raw.platformTitle,
       PERMIT_FIELD_LIMITS.platformTitle,
-      'التحقق من تصريح',
+      'التحقق من تصريح أجير',
     ),
     platformSubtitle: trimClamp(
       raw.platformSubtitle,

@@ -97,7 +97,9 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
 
         <div className="py-3.5 px-4 text-center border-b border-[#e5e7eb]">
           <h1 className="text-[22px] font-bold text-[#111827] leading-snug">
-            {permit.platformTitle}
+            {permit.platformTitle === 'التحقق من تصريح'
+              ? 'التحقق من تصريح أجير'
+              : permit.platformTitle}
           </h1>
         </div>
 
