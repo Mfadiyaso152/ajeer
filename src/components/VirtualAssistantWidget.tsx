@@ -135,7 +135,7 @@ function createInitialMessages(): ChatMessage[] {
     {
       id: 'welcome-1',
       sender: 'bot',
-      text: 'مرحبًا، أنا مساعدك الافتراضي من ميثاق. يسرني خدمتك والإجابة عن استفساراتك 👍',
+      text: 'مرحبًا، أنا مساعدك الافتراضي. يسرني خدمتك والإجابة عن استفساراتك 👍',
       timeLabel: 'bot - الآن',
     },
     {
@@ -229,10 +229,10 @@ export const VirtualAssistantWidget: React.FC = () => {
 
     if (lower.includes('pdf') || trimmed.includes('طباعة') || trimmed.includes('حفظ')) {
       botReply =
-        'لحفظ التصريح كملف PDF، اضغط على زر الطباعة أسفل يمين الصفحة ثم اختر «حفظ بتنسيق PDF».';
+        'لحفظ التصريح كملف PDF، استخدم خيار الطباعة من المتصفح (Ctrl+P) ثم اختر «حفظ بتنسيق PDF».';
     } else if (trimmed.includes('تعديل') || trimmed.includes('لوحة') || trimmed.includes('شعار')) {
       botReply =
-        'يمكنك تعديل جميع البيانات والشعار عبر فتح لوحة التحكم من أيقونة الإعدادات أسفل يمين الشاشة.';
+        'يمكنك الدخول إلى لوحة التحكم لتعديل البيانات والشعار بإضافة #admin في نهاية الرابط أو بالضغط على Ctrl+Shift+A.';
     } else if (savedToCloud) {
       botReply = 'تم استلام استفسارك وحفظه بنجاح. كيف يمكنني مساعدتك أيضاً؟';
     }
@@ -280,7 +280,7 @@ export const VirtualAssistantWidget: React.FC = () => {
       {isOpen && (
         <section
           dir="rtl"
-          aria-label="مساعدك الافتراضي من ميثاق"
+          aria-label="مساعدك الافتراضي"
           className="no-print fixed bottom-22 left-3 right-3 sm:right-auto sm:left-5 sm:w-[390px] max-h-[82vh] z-50 flex flex-col rounded-2xl overflow-hidden bg-[#f5f7f6] border border-gray-200 shadow-2xl"
         >
           {/* Header Bar */}
@@ -290,7 +290,7 @@ export const VirtualAssistantWidget: React.FC = () => {
                 <ChatBubbleSvg className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-bold text-[#111827] truncate">
-                مساعدك الافتراضي من ميثاق
+                مساعدك الافتراضي
               </h3>
             </div>
 

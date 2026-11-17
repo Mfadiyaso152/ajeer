@@ -3,8 +3,10 @@ import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/aut
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   serverTimestamp,
   setDoc,
@@ -20,20 +22,28 @@ import {
   handleFirestoreError,
   testConnection,
 } from '../lib/firebase';
-import { PermitData, sanitizePermitPayload } from '../types/permit';
+import { PermitData, isValidPermitSlug, sanitizePermitPayload } from '../types/permit';
+
+export interface PermitListItem {
+  id: string;
+  data: PermitData;
+}
 
 interface FirebasePermitContextValue {
   permit: PermitData;
+  allPermits: PermitListItem[];
+  loadingPermitsList: boolean;
   loadingPermit: boolean;
-  lastSyncedAt: string | null;
   user: User | null;
   authReady: boolean;
   isAdmin: boolean;
-  checkingAdmin: boolean;
   saving: boolean;
   authError: string | null;
-  savePermitData: (nextData: PermitData) => Promise<void>;
-  resetToDefaultPermit: () => Promise<void>;
+  fetchPermitBySlug: (slug: string) => Promise<PermitData | null>;
+  refreshAllPermits: () => Promise<void>;
+  createPermitWithPermitNumber: (nextData: PermitData) => Promise<string>;
+  updatePermitById: (permitId: string, nextData: PermitData) => Promise<string>;
+  deletePermitById: (permitId: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOutUser: () => Promise<void>;
   submitSupportInquiry: (serviceTopic: string, message: string) => Promise<boolean>;
@@ -74,14 +84,15 @@ function mapDocToPermitData(data: Record<string, unknown>): PermitData {
   });
 }
 
+
 export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [permit, setPermit] = useState<PermitData>(DEFAULT_PERMIT_DATA);
+  const [allPermits, setAllPermits] = useState<PermitListItem[]>([]);
+  const [loadingPermitsList, setLoadingPermitsList] = useState<boolean>(false);
   const [loadingPermit, setLoadingPermit] = useState<boolean>(true);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [checkingAdmin, setCheckingAdmin] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -90,56 +101,27 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   useEffect(() => {
-    let active = true;
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!active) return;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
       setAuthError(null);
 
-      if (!currentUser) {
-        setIsAdmin(false);
-        setCheckingAdmin(false);
-        return;
-      }
-
-      if (!currentUser.emailVerified) {
-        setIsAdmin(false);
-        setCheckingAdmin(false);
-        return;
-      }
-
-      if (currentUser.email === BOOTSTRAPPED_ADMIN_EMAIL) {
+      if (
+        currentUser &&
+        currentUser.emailVerified &&
+        currentUser.email === BOOTSTRAPPED_ADMIN_EMAIL
+      ) {
         setIsAdmin(true);
-        setCheckingAdmin(false);
-        return;
-      }
-
-      setCheckingAdmin(true);
-      const adminDocPath = `admins/${currentUser.uid}`;
-      try {
-        const adminSnap = await getDoc(doc(db, 'admins', currentUser.uid));
-        if (active) {
-          setIsAdmin(adminSnap.exists());
-        }
-      } catch (error) {
-        if (active) {
-          setIsAdmin(false);
-        }
-        handleFirestoreError(error, OperationType.GET, adminDocPath);
-      } finally {
-        if (active) {
-          setCheckingAdmin(false);
-        }
+      } else {
+        setIsAdmin(false);
+        setAllPermits([]);
       }
     });
 
-    return () => {
-      active = false;
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
+  // Load main default permit record
   useEffect(() => {
     if (!authReady) return;
     let active = true;
@@ -153,9 +135,7 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
           const snap = await getDoc(permitRef);
           if (!active) return;
           if (snap.exists()) {
-            const raw = snap.data() as Record<string, unknown>;
-            setPermit(mapDocToPermitData(raw));
-            setLastSyncedAt(new Date().toLocaleTimeString('ar-SA'));
+            setPermit(mapDocToPermitData(snap.data() as Record<string, unknown>));
           } else {
             setPermit(DEFAULT_PERMIT_DATA);
           }
@@ -178,9 +158,7 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
       (snap) => {
         if (!active) return;
         if (snap.exists()) {
-          const raw = snap.data() as Record<string, unknown>;
-          setPermit(mapDocToPermitData(raw));
-          setLastSyncedAt(new Date().toLocaleTimeString('ar-SA'));
+          setPermit(mapDocToPermitData(snap.data() as Record<string, unknown>));
         } else {
           setPermit(DEFAULT_PERMIT_DATA);
         }
@@ -200,34 +178,166 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, [authReady, user]);
 
-  const savePermitData = useCallback(
-    async (nextData: PermitData) => {
-      if (!user) {
-        throw new Error('يجب تسجيل الدخول بحساب مشرف معتمد للحفظ.');
-      }
-      setSaving(true);
-      const permitPath = `permits/${DEFAULT_PERMIT_DOC_ID}`;
-      try {
-        const sanitized = sanitizePermitPayload(nextData);
-        await setDoc(doc(db, 'permits', DEFAULT_PERMIT_DOC_ID), {
-          ...sanitized,
-          updatedAt: serverTimestamp(),
-          updatedBy: user.uid,
+  const refreshAllPermits = useCallback(async () => {
+    if (!isAdmin) return;
+    setLoadingPermitsList(true);
+    try {
+      const snap = await getDocs(collection(db, 'permits'));
+      const items: PermitListItem[] = [];
+      snap.forEach((docSnap) => {
+        items.push({
+          id: docSnap.id,
+          data: mapDocToPermitData(docSnap.data() as Record<string, unknown>),
         });
-        setPermit(sanitized);
-        setLastSyncedAt(new Date().toLocaleTimeString('ar-SA'));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, permitPath);
+      });
+      setAllPermits(items);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'permits');
+    } finally {
+      setLoadingPermitsList(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      void refreshAllPermits();
+    }
+  }, [isAdmin, refreshAllPermits]);
+
+  const fetchPermitBySlug = useCallback(async (slug: string): Promise<PermitData | null> => {
+    const cleanSlug = slug.trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(cleanSlug) || cleanSlug.length > 128) {
+      return null;
+    }
+    const permitPath = `permits/${cleanSlug}`;
+    try {
+      const snap = await getDoc(doc(db, 'permits', cleanSlug));
+      if (!snap.exists()) {
+        return null;
+      }
+      return mapDocToPermitData(snap.data() as Record<string, unknown>);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, permitPath);
+    }
+  }, []);
+
+  const createPermitWithPermitNumber = useCallback(
+    async (nextData: PermitData): Promise<string> => {
+      if (!user || user.email !== BOOTSTRAPPED_ADMIN_EMAIL) {
+        throw new Error('الدخول والتعديل مصرح به فقط لحساب mfb.15.f@gmail.com.');
+      }
+      const slug = nextData.permitNumber.trim();
+      if (!isValidPermitSlug(slug)) {
+        throw new Error(
+          'رقم التصريح إجباري ويجب أن يتكون من أحرف إنجليزية وأرقام أو (- / _) بدون مسافات.',
+        );
+      }
+
+      setSaving(true);
+      try {
+        const permitPath = `permits/${slug}`;
+        const existingSnap = await getDoc(doc(db, 'permits', slug));
+        if (existingSnap.exists()) {
+          throw new Error(
+            'يوجد تصريح مسجل مسبقاً بنفس رقم التصريح هذا. يرجى إدخال رقم مختلف أو تعديل التصريح الموجود.',
+          );
+        }
+
+        const sanitized = sanitizePermitPayload({ ...nextData, permitNumber: slug });
+        try {
+          await setDoc(doc(db, 'permits', slug), {
+            ...sanitized,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, permitPath);
+        }
+
+        await refreshAllPermits();
+        return slug;
       } finally {
         setSaving(false);
       }
     },
-    [user],
+    [user, refreshAllPermits],
   );
 
-  const resetToDefaultPermit = useCallback(async () => {
-    await savePermitData(DEFAULT_PERMIT_DATA);
-  }, [savePermitData]);
+  const updatePermitById = useCallback(
+    async (permitId: string, nextData: PermitData): Promise<string> => {
+      if (!user || user.email !== BOOTSTRAPPED_ADMIN_EMAIL) {
+        throw new Error('الدخول والتعديل مصرح به فقط لحساب mfb.15.f@gmail.com.');
+      }
+      const nextSlug = nextData.permitNumber.trim();
+      if (!isValidPermitSlug(nextSlug)) {
+        throw new Error(
+          'رقم التصريح إجباري ويجب أن يتكون من أحرف إنجليزية وأرقام أو (- / _) بدون مسافات.',
+        );
+      }
+
+      setSaving(true);
+      const targetPath = `permits/${nextSlug}`;
+      try {
+        const sanitized = sanitizePermitPayload({ ...nextData, permitNumber: nextSlug });
+        if (nextSlug !== permitId) {
+          const existingSnap = await getDoc(doc(db, 'permits', nextSlug));
+          if (existingSnap.exists()) {
+            throw new Error('يوجد تصريح آخر مسجل مسبقاً برقم التصريح الجديد.');
+          }
+          await setDoc(doc(db, 'permits', nextSlug), {
+            ...sanitized,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+          });
+          if (permitId !== DEFAULT_PERMIT_DOC_ID) {
+            await deleteDoc(doc(db, 'permits', permitId));
+          }
+        } else {
+          await setDoc(doc(db, 'permits', permitId), {
+            ...sanitized,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+          });
+        }
+
+        if (nextSlug === DEFAULT_PERMIT_DOC_ID) {
+          setPermit(sanitized);
+        }
+        await refreshAllPermits();
+        return nextSlug;
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('يوجد تصريح')) {
+          throw error;
+        }
+        handleFirestoreError(error, OperationType.WRITE, targetPath);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [user, refreshAllPermits],
+  );
+
+  const deletePermitById = useCallback(
+    async (permitId: string): Promise<void> => {
+      if (!user || user.email !== BOOTSTRAPPED_ADMIN_EMAIL) {
+        throw new Error('الدخول والتعديل مصرح به فقط لحساب mfb.15.f@gmail.com.');
+      }
+      if (permitId === DEFAULT_PERMIT_DOC_ID) {
+        throw new Error('لا يمكن حذف التصريح الافتراضي الرئيسي.');
+      }
+      setSaving(true);
+      const permitPath = `permits/${permitId}`;
+      try {
+        await deleteDoc(doc(db, 'permits', permitId));
+        await refreshAllPermits();
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, permitPath);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [user, refreshAllPermits],
+  );
 
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
@@ -249,9 +359,7 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
     async (serviceTopic: string, message: string): Promise<boolean> => {
       const cleanMessage = message.trim().slice(0, 1000);
       const cleanTopic = serviceTopic.trim().slice(0, 120) || 'استفسار عام';
-      if (!cleanMessage) return false;
-
-      if (!user || !user.emailVerified) {
+      if (!cleanMessage || !user || !user.emailVerified) {
         return false;
       }
 
@@ -275,16 +383,19 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
     <FirebasePermitContext.Provider
       value={{
         permit,
+        allPermits,
+        loadingPermitsList,
         loadingPermit,
-        lastSyncedAt,
         user,
         authReady,
         isAdmin,
-        checkingAdmin,
         saving,
         authError,
-        savePermitData,
-        resetToDefaultPermit,
+        fetchPermitBySlug,
+        refreshAllPermits,
+        createPermitWithPermitNumber,
+        updatePermitById,
+        deletePermitById,
         signInWithGoogle,
         signOutUser,
         submitSupportInquiry,

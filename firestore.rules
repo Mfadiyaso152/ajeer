@@ -29,14 +29,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerifiedUser() && (
-        request.auth.token.email == 'mfb.15.f@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      );
+      return isVerifiedUser() && request.auth.token.email == 'mfb.15.f@gmail.com';
     }
 
     function isValidDateString(val) {
       return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidPageSlug(pageId) {
+      return pageId in ['about', 'services', 'support', 'faq', 'terms', 'privacy'];
     }
 
     // --- Validation Blueprints ---
@@ -87,6 +88,17 @@ service cloud.firestore {
         && data.updatedBy is string && data.updatedBy == request.auth.uid && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
     }
 
+    function isValidSitePage(data) {
+      let keys = ['title', 'subtitle', 'content', 'updatedAt', 'updatedBy'];
+      return data.keys().hasAll(keys)
+        && data.keys().hasOnly(keys)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 150
+        && data.subtitle is string && data.subtitle.size() <= 250
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 8000
+        && data.updatedAt is timestamp
+        && data.updatedBy is string && data.updatedBy == request.auth.uid && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
     function isValidAdminUser(data) {
       let keys = ['email', 'displayName', 'role', 'createdAt'];
       return data.keys().hasAll(keys)
@@ -113,7 +125,7 @@ service cloud.firestore {
     }
 
     match /permits/{permitId} {
-      allow get: if isValidId(permitId) && (permitId == 'default_demo' || isAdmin());
+      allow get: if isValidId(permitId);
       allow list: if isAdmin();
       allow create: if isValidId(permitId)
         && isAdmin()
@@ -146,6 +158,27 @@ service cloud.firestore {
           'updatedBy'
         ]);
       allow delete: if isValidId(permitId) && isAdmin() && permitId != 'default_demo';
+    }
+
+    match /pages/{pageId} {
+      allow get: if isValidPageSlug(pageId);
+      allow list: if isAdmin();
+      allow create: if isValidPageSlug(pageId)
+        && isAdmin()
+        && isValidSitePage(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidPageSlug(pageId)
+        && isAdmin()
+        && isValidSitePage(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title',
+          'subtitle',
+          'content',
+          'updatedAt',
+          'updatedBy'
+        ]);
+      allow delete: if false;
     }
 
     match /admins/{userId} {

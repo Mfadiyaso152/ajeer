@@ -1,8 +1,5 @@
 import { PermitData } from '../types/permit';
 
-export const DEFAULT_HEADER_LOGO = '/src/assets/images/demo_header_logo_1794936526666.jpg';
-export const DEFAULT_FOOTER_EMBLEM = '/src/assets/images/demo_footer_emblem_1794936528176.jpg';
-
 export const DEFAULT_PERMIT_DATA: PermitData = {
   permitNumber: 'غير مقدم',
   permitType: 'عقد أجير',

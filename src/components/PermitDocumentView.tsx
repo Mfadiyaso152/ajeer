@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { DEFAULT_HEADER_LOGO } from '../data/defaultPermit';
+import React from 'react';
 import { PermitData } from '../types/permit';
-import { CopyButton } from './CopyButton';
+import { MockOrganizationLogo, MockPlatformLogo } from './MockLogos';
 
 interface PermitDocumentViewProps {
   permit: PermitData;
@@ -12,7 +11,6 @@ interface DataRowProps {
   label: string;
   value: string;
   bold?: boolean;
-  copyable?: boolean;
   ltrValue?: boolean;
 }
 
@@ -20,7 +18,6 @@ const DataRow: React.FC<DataRowProps> = ({
   label,
   value,
   bold = false,
-  copyable = false,
   ltrValue = false,
 }) => {
   return (
@@ -28,8 +25,7 @@ const DataRow: React.FC<DataRowProps> = ({
       <div className="bg-[#fafafa] px-4 pt-2.5 pb-1 text-right text-[13.5px] text-[#8c929c] font-normal">
         {label}
       </div>
-      <div className="bg-white px-4 pt-1 pb-3 flex items-center justify-end gap-1.5">
-        {copyable && <CopyButton value={value} label={label} />}
+      <div className="bg-white px-4 pt-1 pb-3 flex items-center justify-end">
         <span
           dir={ltrValue ? 'ltr' : 'auto'}
           className={`text-[15px] text-[#111827] break-words text-left ${
@@ -60,9 +56,6 @@ const SectionCard: React.FC<SectionCardProps> = ({ title, children }) => {
 };
 
 export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, loading }) => {
-  const [logoError, setLogoError] = useState(false);
-  const hasCustomLogo = Boolean(permit.customLogoDataUrl);
-
   if (loading) {
     return (
       <div
@@ -70,7 +63,7 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
         aria-busy="true"
         aria-label="جاري تحميل بيانات التصريح"
       >
-        <div className="h-24 bg-gray-100" />
+        <div className="h-28 bg-gray-100" />
         <div className="h-14 bg-gray-100" />
         <div className="h-56 bg-gray-100" />
         <div className="h-72 bg-gray-100" />
@@ -80,22 +73,25 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
 
   return (
     <div className="border border-[#dcdcdc] bg-white">
-      {/* Header Logo + Title + Status + Subtitle */}
+      {/* Header Logos + Title + Status + Subtitle */}
       <header className="bg-white">
-        <div className="py-5 px-4 flex items-center justify-center gap-3 border-b border-[#e5e7eb]">
-          {!logoError ? (
+        <div className="py-5 px-4 flex items-center justify-around gap-4 border-b border-[#e5e7eb]">
+          {permit.customLogoDataUrl ? (
             <img
-              src={hasCustomLogo ? permit.customLogoDataUrl : DEFAULT_HEADER_LOGO}
-              alt="شعار منصة ميثاق"
+              src={permit.customLogoDataUrl}
+              alt="الشعار المخصص"
               referrerPolicy="no-referrer"
-              onError={() => setLogoError(true)}
-              className={hasCustomLogo ? 'h-16 sm:h-20 w-auto object-contain' : 'h-14 w-auto object-contain'}
+              className="max-h-20 w-auto max-w-full object-contain mx-auto"
             />
-          ) : null}
-          {!hasCustomLogo && (
-            <span className="text-2xl font-extrabold tracking-tight text-[#0B2240]">
-              مِيثاق
-            </span>
+          ) : (
+            <>
+              <div className="flex-1 flex items-center justify-center">
+                <MockPlatformLogo size="md" />
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <MockOrganizationLogo size="md" />
+              </div>
+            </>
           )}
         </div>
 
@@ -122,7 +118,7 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
       <div className="px-2.5 pb-3 space-y-3 bg-white">
         {/* Card 1: Permit Details */}
         <SectionCard title="بيانات التصريح">
-          <DataRow label="رقم التصريح" value={permit.permitNumber} copyable />
+          <DataRow label="رقم التصريح" value={permit.permitNumber} />
           <DataRow label="نوع التصريح" value={permit.permitType} />
           <DataRow label="تاريخ بداية التصريح" value={permit.startDate} ltrValue />
           <DataRow label="تاريخ نهاية التصريح" value={permit.endDate} ltrValue />
@@ -130,12 +126,11 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
 
         {/* Card 2: Worker Details */}
         <SectionCard title="بيانات العامل">
-          <DataRow label="اسم العامل" value={permit.workerName} bold copyable />
+          <DataRow label="اسم العامل" value={permit.workerName} bold />
           <DataRow
             label="رقم الهوية / الإقامة"
             value={permit.workerIdNumber}
             bold
-            copyable
             ltrValue
           />
           <DataRow label="الجنسية" value={permit.nationality} />
@@ -149,7 +144,6 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
           <DataRow
             label="رقم المنشأة"
             value={permit.firstEstablishmentNumber}
-            copyable
             ltrValue
           />
           <DataRow label="اسم المنشأة" value={permit.firstEstablishmentName} />
@@ -160,7 +154,6 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
           <DataRow
             label="رقم المنشأة"
             value={permit.secondEstablishmentNumber}
-            copyable
             ltrValue
           />
           <DataRow label="اسم المنشأة" value={permit.secondEstablishmentName} />

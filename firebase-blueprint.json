@@ -9,7 +9,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 80,
-          "description": "Permit reference number or 'غير مقدم'."
+          "description": "Permit reference number."
         },
         "permitType": {
           "type": "string",
@@ -35,7 +35,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
-          "description": "Non-governmental demonstration status label."
+          "description": "Permit status label."
         },
         "workerName": {
           "type": "string",
@@ -107,13 +107,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
-          "description": "Header display title for the demo permit page."
+          "description": "Header display title for the permit page."
         },
         "platformSubtitle": {
           "type": "string",
           "minLength": 1,
           "maxLength": 180,
-          "description": "Explanatory disclaimer subtitle."
+          "description": "Explanatory subtitle."
         },
         "updatedAt": {
           "type": "string",
@@ -149,6 +149,43 @@
         "updatedAt",
         "updatedBy"
       ]
+    },
+    "SitePage": {
+      "title": "SitePage",
+      "description": "Editable informational page content managed from the admin dashboard.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150,
+          "description": "Page heading."
+        },
+        "subtitle": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 250,
+          "description": "Optional short lead text."
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "description": "Main Arabic body content of the page."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        },
+        "updatedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID of admin."
+        }
+      },
+      "required": ["title", "subtitle", "content", "updatedAt", "updatedBy"]
     },
     "AdminUser": {
       "title": "AdminUser",
@@ -217,7 +254,13 @@
       "schema": {
         "$ref": "#/entities/PermitRecord"
       },
-      "description": "Stores work permit demonstration records; 'default_demo' is publicly readable and writable only by verified admins."
+      "description": "Stores permit records; 'default_demo' is publicly readable and writable only by the authorized admin."
+    },
+    "/pages/{pageId}": {
+      "schema": {
+        "$ref": "#/entities/SitePage"
+      },
+      "description": "Stores editable site pages (about, services, support, faq, terms, privacy)."
     },
     "/admins/{userId}": {
       "schema": {

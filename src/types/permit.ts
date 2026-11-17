@@ -20,6 +20,17 @@ export interface PermitData {
 }
 
 export const PERMIT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const PERMIT_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+export function isValidPermitSlug(raw: string): boolean {
+  const trimmed = raw.trim();
+  return (
+    trimmed.length >= 1 &&
+    trimmed.length <= 80 &&
+    PERMIT_SLUG_PATTERN.test(trimmed) &&
+    trimmed.toLowerCase() !== 'admin'
+  );
+}
 
 export const PERMIT_FIELD_LIMITS = {
   permitNumber: 80,
@@ -40,6 +51,12 @@ export const PERMIT_FIELD_LIMITS = {
   customLogoDataUrl: 180000,
   platformTitle: 120,
   platformSubtitle: 180,
+} as const;
+
+export const PAGE_FIELD_LIMITS = {
+  title: 150,
+  subtitle: 250,
+  content: 8000,
 } as const;
 
 export function sanitizePermitPayload(raw: PermitData): PermitData {
