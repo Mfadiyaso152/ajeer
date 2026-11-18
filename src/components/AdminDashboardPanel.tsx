@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
@@ -13,13 +13,21 @@ import {
   Pencil,
   PlusCircle,
   Save,
+  Search,
   ShieldAlert,
+  SlidersHorizontal,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useFirebasePermit } from '../context/FirebasePermitContext';
 import { DEFAULT_PERMIT_DATA } from '../data/defaultPermit';
 import { BOOTSTRAPPED_ADMIN_EMAIL } from '../lib/firebase';
-import { PERMIT_FIELD_LIMITS, PermitData, isValidPermitSlug } from '../types/permit';
+import {
+  PERMIT_DATE_PATTERN,
+  PERMIT_FIELD_LIMITS,
+  PermitData,
+  isValidPermitSlug,
+} from '../types/permit';
 import { MockPlatformLogo } from './MockLogos';
 import { PermitDocumentView } from './PermitDocumentView';
 
@@ -49,6 +57,48 @@ const EMPTY_NEW_PERMIT: PermitData = {
 };
 
 const STATUS_PRESETS = ['ساري / فعال', 'موقوف مؤقتاً', 'منتهي الصلاحية'];
+const LAST_DATES_STORAGE_KEY = 'ajeer_admin_last_dates';
+
+function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function loadLastDates(): { startDate: string; endDate: string } {
+  try {
+    const raw = window.localStorage.getItem(LAST_DATES_STORAGE_KEY);
+    if (!raw) return { startDate: '', endDate: '' };
+    const parsed = JSON.parse(raw) as { startDate?: unknown; endDate?: unknown };
+    return {
+      startDate:
+        typeof parsed.startDate === 'string' && PERMIT_DATE_PATTERN.test(parsed.startDate)
+          ? parsed.startDate
+          : '',
+      endDate:
+        typeof parsed.endDate === 'string' && PERMIT_DATE_PATTERN.test(parsed.endDate)
+          ? parsed.endDate
+          : '',
+    };
+  } catch {
+    return { startDate: '', endDate: '' };
+  }
+}
+
+function saveLastDates(startDate: string, endDate: string): void {
+  try {
+    const current = loadLastDates();
+    const next = {
+      startDate: PERMIT_DATE_PATTERN.test(startDate) ? startDate : current.startDate,
+      endDate: PERMIT_DATE_PATTERN.test(endDate) ? endDate : current.endDate,
+    };
+    window.localStorage.setItem(LAST_DATES_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 async function compressLogoFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -113,9 +163,57 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null,
   );
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filteredPermits = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const list = query
+      ? allPermits.filter((item) => {
+          const d = item.data;
+          return (
+            d.workerName.toLowerCase().includes(query) ||
+            d.permitNumber.toLowerCase().includes(query) ||
+            d.workerIdNumber.toLowerCase().includes(query) ||
+            d.secondEstablishmentName.toLowerCase().includes(query)
+          );
+        })
+      : [...allPermits];
+
+    list.sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.data.workerName.localeCompare(b.data.workerName, 'ar');
+      }
+      if (sortBy === 'oldest') {
+        return a.updatedAtMs - b.updatedAtMs;
+      }
+      return b.updatedAtMs - a.updatedAtMs;
+    });
+
+    return list;
+  }, [allPermits, searchQuery, sortBy]);
+
+  const sortLabel =
+    sortBy === 'newest'
+      ? 'الأحدث إضافة'
+      : sortBy === 'oldest'
+        ? 'الأقدم إضافة'
+        : 'حسب الاسم (أ - ي)';
 
   useEffect(() => {
     if (mode === 'edit') {
@@ -151,12 +249,23 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
   };
 
   const updateField = <K extends keyof PermitData>(key: K, value: PermitData[K]) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    setDraft((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === 'startDate' || key === 'endDate') {
+        saveLastDates(next.startDate, next.endDate);
+      }
+      return next;
+    });
     if (feedback) setFeedback(null);
   };
 
   const handleOpenCreate = () => {
-    setDraft({ ...EMPTY_NEW_PERMIT });
+    const lastDates = loadLastDates();
+    setDraft({
+      ...EMPTY_NEW_PERMIT,
+      startDate: lastDates.startDate,
+      endDate: lastDates.endDate,
+    });
     setCreatedSlug(null);
     setFeedback(null);
     setMode('create');
@@ -246,6 +355,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     };
 
     try {
+      saveLastDates(payload.startDate, payload.endDate);
       if (mode === 'create') {
         const slug = await createPermitWithPermitNumber(payload);
         setCreatedSlug(slug);
@@ -510,46 +620,153 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {allPermits.map((item) => {
-                const fullUrl = getFullPermitUrl(item.id);
-                const isPrimary = item.id === DEFAULT_PERMIT_DATA.permitNumber;
-                return (
-                  <div
-                    key={item.id}
-                    className="border border-gray-200 rounded-xl bg-white p-4 flex flex-col justify-between gap-4"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-base font-bold text-gray-950 flex items-center gap-2">
-                            <span>{item.data.workerName}</span>
-                            {isPrimary && (
-                              <span className="text-[11px] font-semibold text-[#0B2240] bg-slate-100 px-2 py-0.5 rounded">
-                                التصريح الأساسي
-                              </span>
-                            )}
-                          </h3>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            رقم الهوية:{' '}
-                            <span dir="ltr" className="font-semibold text-gray-800 tabular-nums">
-                              {item.data.workerIdNumber}
-                            </span>
-                            {' · '}
-                            رقم التصريح:{' '}
-                            <span className="font-semibold text-gray-800">
-                              {item.data.permitNumber}
-                            </span>
-                          </p>
-                        </div>
-                        <span className="text-xs font-semibold text-[#1e7a43]">
-                          {item.data.verificationStatus}
-                        </span>
-                      </div>
+            <div className="space-y-4">
+              {/* Search Bar & Filter/Sort Button */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <div className="relative flex-1">
+                  <Search
+                    className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="ابحث بالاسم، رقم التصريح، الهوية، أو المنشأة..."
+                    aria-label="بحث في التصاريح"
+                    className="w-full rounded-lg border border-gray-300 bg-white pr-9 pl-9 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#0B2240] focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="مسح البحث"
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-0.5 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
 
-                      <div className="text-xs text-gray-600 space-y-1 pt-1">
-                        <div>المنشأة: {item.data.secondEstablishmentName}</div>
-                      </div>
+                <div ref={filterMenuRef} className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setFilterMenuOpen((prev) => !prev)}
+                    aria-expanded={filterMenuOpen}
+                    aria-haspopup="menu"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs sm:text-sm font-semibold text-gray-800 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-[#0B2240]" aria-hidden="true" />
+                    <span>فلترة: {sortLabel}</span>
+                  </button>
+
+                  {filterMenuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute left-0 sm:left-0 mt-1.5 w-48 rounded-xl border border-gray-200 bg-white shadow-lg py-1.5 z-30"
+                    >
+                      {(
+                        [
+                          { id: 'newest', label: 'الأحدث إضافة' },
+                          { id: 'oldest', label: 'الأقدم إضافة' },
+                          { id: 'name', label: 'حسب الاسم (أ - ي)' },
+                        ] as const
+                      ).map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={sortBy === option.id}
+                          onClick={() => {
+                            setSortBy(option.id);
+                            setFilterMenuOpen(false);
+                          }}
+                          className={`w-full px-3.5 py-2 text-right text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
+                            sortBy === option.id
+                              ? 'bg-slate-100 text-[#0B2240]'
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span>{option.label}</span>
+                          {sortBy === option.id && (
+                            <Check className="w-3.5 h-3.5 text-[#1e7a43]" aria-hidden="true" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {filteredPermits.length === 0 ? (
+                <div className="border border-gray-200 rounded-xl p-8 text-center space-y-3 bg-white">
+                  <p className="text-sm text-gray-600">
+                    لا توجد تصاريح مطابقة لـ «{searchQuery}».
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="px-4 py-2 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    عرض جميع التصاريح
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredPermits.map((item) => {
+                    const fullUrl = getFullPermitUrl(item.id);
+                    const isPrimary = item.id === DEFAULT_PERMIT_DATA.permitNumber;
+                    const addedDateLabel =
+                      item.updatedAtMs > 0
+                        ? new Date(item.updatedAtMs).toLocaleString('ar-SA', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '';
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-gray-200 rounded-xl bg-white p-4 flex flex-col justify-between gap-4"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="text-base font-bold text-gray-950 flex items-center gap-2">
+                                <span>{item.data.workerName}</span>
+                                {isPrimary && (
+                                  <span className="text-[11px] font-semibold text-[#0B2240] bg-slate-100 px-2 py-0.5 rounded">
+                                    التصريح الأساسي
+                                  </span>
+                                )}
+                              </h3>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                رقم الهوية:{' '}
+                                <span dir="ltr" className="font-semibold text-gray-800 tabular-nums">
+                                  {item.data.workerIdNumber}
+                                </span>
+                                {' · '}
+                                رقم التصريح:{' '}
+                                <span className="font-semibold text-gray-800">
+                                  {item.data.permitNumber}
+                                </span>
+                              </p>
+                            </div>
+                            <span className="text-xs font-semibold text-[#1e7a43]">
+                              {item.data.verificationStatus}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-gray-600 space-y-1 pt-1">
+                            <div>المنشأة: {item.data.secondEstablishmentName}</div>
+                            {addedDateLabel && (
+                              <div className="text-[11px] text-gray-400">
+                                تاريخ الإضافة: {addedDateLabel}
+                              </div>
+                            )}
+                          </div>
 
                       <div className="pt-2">
                         <div className="text-[11px] font-semibold text-gray-500 mb-1">
@@ -639,6 +856,8 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                   </div>
                 );
               })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -724,9 +943,18 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                   />
                 </div>
                 <div>
-                  <label htmlFor="startDate" className={labelClass}>
-                    تاريخ بداية التصريح *
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label htmlFor="startDate" className="text-xs font-semibold text-gray-700">
+                      تاريخ بداية التصريح *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => updateField('startDate', getTodayDateString())}
+                      className="px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[#1e7a43] hover:bg-emerald-100 text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      تاريخ اليوم
+                    </button>
+                  </div>
                   <input
                     id="startDate"
                     type="date"

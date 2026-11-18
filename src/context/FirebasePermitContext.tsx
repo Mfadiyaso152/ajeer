@@ -26,6 +26,7 @@ import { PermitData, isValidPermitSlug, sanitizePermitPayload } from '../types/p
 export interface PermitListItem {
   id: string;
   data: PermitData;
+  updatedAtMs: number;
 }
 
 interface FirebasePermitContextValue {
@@ -126,9 +127,13 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
       const snap = await getDocs(collection(db, 'permits'));
       const items: PermitListItem[] = [];
       snap.forEach((docSnap) => {
+        const raw = docSnap.data() as Record<string, unknown>;
+        const ts = raw.updatedAt as { toMillis?: () => number } | undefined;
+        const updatedAtMs = typeof ts?.toMillis === 'function' ? ts.toMillis() : 0;
         items.push({
           id: docSnap.id,
-          data: mapDocToPermitData(docSnap.data() as Record<string, unknown>),
+          data: mapDocToPermitData(raw),
+          updatedAtMs,
         });
       });
 
@@ -150,7 +155,11 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
             updatedAt: serverTimestamp(),
             updatedBy: user.uid,
           });
-          items[legacyDefaultIndex] = { id: targetSlug, data: migratedData };
+          items[legacyDefaultIndex] = {
+            id: targetSlug,
+            data: migratedData,
+            updatedAtMs: Date.now(),
+          };
         } else {
           items.splice(legacyDefaultIndex, 1);
         }
@@ -171,12 +180,13 @@ export const FirebasePermitProvider: React.FC<{ children: React.ReactNode }> = (
           updatedAt: serverTimestamp(),
           updatedBy: user.uid,
         });
-        items.push({ id: primarySlug, data: primaryData });
+        items.push({ id: primarySlug, data: primaryData, updatedAtMs: Date.now() });
         setPermit(primaryData);
       } else {
         hasBootstrappedPrimaryRef.current = true;
       }
 
+      items.sort((a, b) => b.updatedAtMs - a.updatedAtMs);
       setAllPermits(items);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'permits');
