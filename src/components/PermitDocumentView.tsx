@@ -22,13 +22,13 @@ const DataRow: React.FC<DataRowProps> = ({
 }) => {
   return (
     <div className="border-t border-[#e5e7eb]">
-      <div className="bg-[#fafafa] px-4 pt-2.5 pb-1 text-right text-[13.5px] text-[#8c929c] font-normal">
+      <div className="bg-[#fafafa] px-3.5 pt-2 pb-0.5 text-right text-[12px] text-[#8c929c] font-normal">
         {label}
       </div>
-      <div className="bg-white px-4 pt-1 pb-3 flex items-center justify-end">
+      <div className="bg-white px-3.5 pt-0.5 pb-2.5 flex items-center justify-start">
         <span
           dir={ltrValue ? 'ltr' : 'auto'}
-          className={`text-[15px] text-[#111827] break-words text-left ${
+          className={`text-[13.5px] text-[#111827] break-words text-right ${
             bold ? 'font-bold' : 'font-semibold'
           } ${ltrValue ? 'tabular-nums' : ''}`}
         >
@@ -47,8 +47,8 @@ interface SectionCardProps {
 const SectionCard: React.FC<SectionCardProps> = ({ title, children }) => {
   return (
     <section className="print-card border border-[#dcdcdc] bg-white overflow-hidden">
-      <div className="bg-[#f2f3f5] px-4 py-3 text-right">
-        <h2 className="text-[18px] font-bold text-[#111827]">{title}</h2>
+      <div className="bg-[#f2f3f5] px-3.5 py-2.5 text-right">
+        <h2 className="text-[15.5px] font-bold text-[#111827]">{title}</h2>
       </div>
       <div>{children}</div>
     </section>
@@ -95,22 +95,22 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
           )}
         </div>
 
-        <div className="py-3.5 px-4 text-center border-b border-[#e5e7eb]">
-          <h1 className="text-[22px] font-bold text-[#111827] leading-snug">
+        <div className="py-3 px-4 text-center border-b border-[#e5e7eb]">
+          <h1 className="text-[19px] font-bold text-[#111827] leading-snug">
             {permit.platformTitle === 'التحقق من تصريح'
               ? 'التحقق من تصريح أجير'
               : permit.platformTitle}
           </h1>
         </div>
 
-        <div className="py-3 px-4 text-center border-b border-[#e5e7eb] bg-white">
-          <p className="text-[18px] font-semibold text-[#1e7a43]">
+        <div className="py-2.5 px-4 text-center border-b border-[#e5e7eb] bg-white">
+          <p className="text-[15.5px] font-medium text-[#1e7a43]">
             {permit.verificationStatus}
           </p>
         </div>
 
-        <div className="py-3.5 px-4 text-center bg-white">
-          <p className="text-[15px] text-[#7c828d] leading-relaxed">
+        <div className="py-3 px-4 text-center bg-white">
+          <p className="text-[13px] text-[#7c828d] leading-relaxed">
             {permit.platformSubtitle}
           </p>
         </div>
@@ -141,18 +141,8 @@ export const PermitDocumentView: React.FC<PermitDocumentViewProps> = ({ permit, 
           <DataRow label="تاريخ الميلاد" value={permit.birthDate} ltrValue />
         </SectionCard>
 
-        {/* Card 3: First Establishment Details */}
-        <SectionCard title="بيانات المنشأة الأولى">
-          <DataRow
-            label="رقم المنشأة"
-            value={permit.firstEstablishmentNumber}
-            ltrValue
-          />
-          <DataRow label="اسم المنشأة" value={permit.firstEstablishmentName} />
-        </SectionCard>
-
-        {/* Card 4: Second Establishment Details */}
-        <SectionCard title="بيانات المنشأة الثانية">
+        {/* Card 3: Single Establishment Details (Second Establishment) */}
+        <SectionCard title="بيانات المنشأة">
           <DataRow
             label="رقم المنشأة"
             value={permit.secondEstablishmentNumber}

@@ -222,10 +222,8 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     if (!data.nationality.trim()) return 'يرجى إدخال الجنسية.';
     if (!data.occupation.trim()) return 'يرجى إدخال المهنة.';
     if (!data.birthDate.trim()) return 'يرجى إدخال تاريخ الميلاد.';
-    if (!data.firstEstablishmentName.trim()) return 'يرجى إدخال اسم المنشأة الأولى.';
-    if (!data.firstEstablishmentNumber.trim()) return 'يرجى إدخال رقم المنشأة الأولى.';
-    if (!data.secondEstablishmentName.trim()) return 'يرجى إدخال اسم المنشأة الثانية.';
-    if (!data.secondEstablishmentNumber.trim()) return 'يرجى إدخال رقم المنشأة الثانية.';
+    if (!data.secondEstablishmentName.trim()) return 'يرجى إدخال اسم المنشأة.';
+    if (!data.secondEstablishmentNumber.trim()) return 'يرجى إدخال رقم المنشأة.';
     return null;
   };
 
@@ -239,9 +237,17 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
       return;
     }
 
+    const payload: PermitData = {
+      ...draft,
+      firstEstablishmentName:
+        draft.firstEstablishmentName.trim() || draft.secondEstablishmentName.trim(),
+      firstEstablishmentNumber:
+        draft.firstEstablishmentNumber.trim() || draft.secondEstablishmentNumber.trim(),
+    };
+
     try {
       if (mode === 'create') {
-        const slug = await createPermitWithPermitNumber(draft);
+        const slug = await createPermitWithPermitNumber(payload);
         setCreatedSlug(slug);
         setEditingId(slug);
         setFeedback({
@@ -249,7 +255,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
           text: 'تم إضافة التصريح الجديد وإنشاء رابط الصفحة بنفس رقم التصريح بنجاح.',
         });
       } else {
-        const updatedSlug = await updatePermitById(editingId, draft);
+        const updatedSlug = await updatePermitById(editingId, payload);
         setEditingId(updatedSlug);
         setCreatedSlug(updatedSlug);
         setFeedback({
@@ -542,8 +548,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                       </div>
 
                       <div className="text-xs text-gray-600 space-y-1 pt-1">
-                        <div>المنشأة الأولى: {item.data.firstEstablishmentName}</div>
-                        <div>المنشأة الثانية: {item.data.secondEstablishmentName}</div>
+                        <div>المنشأة: {item.data.secondEstablishmentName}</div>
                       </div>
 
                       <div className="pt-2">
@@ -873,44 +878,15 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
               </div>
             </div>
 
-            {/* Establishments */}
+            {/* Single Establishment (Second Establishment) */}
             <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
               <div className="bg-[#f4f5f7] px-4 py-3 border-b border-gray-200">
-                <h4 className="text-sm font-bold text-gray-950">بيانات المنشأتين</h4>
+                <h4 className="text-sm font-bold text-gray-950">بيانات المنشأة</h4>
               </div>
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="firstEstablishmentName" className={labelClass}>
-                    اسم المنشأة الأولى *
-                  </label>
-                  <input
-                    id="firstEstablishmentName"
-                    type="text"
-                    required
-                    maxLength={PERMIT_FIELD_LIMITS.firstEstablishmentName}
-                    value={draft.firstEstablishmentName}
-                    onChange={(e) => updateField('firstEstablishmentName', e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="firstEstablishmentNumber" className={labelClass}>
-                    رقم المنشأة الأولى *
-                  </label>
-                  <input
-                    id="firstEstablishmentNumber"
-                    type="text"
-                    dir="ltr"
-                    required
-                    maxLength={PERMIT_FIELD_LIMITS.firstEstablishmentNumber}
-                    value={draft.firstEstablishmentNumber}
-                    onChange={(e) => updateField('firstEstablishmentNumber', e.target.value)}
-                    className={`${inputClass} tabular-nums`}
-                  />
-                </div>
-                <div>
                   <label htmlFor="secondEstablishmentName" className={labelClass}>
-                    اسم المنشأة الثانية *
+                    اسم المنشأة *
                   </label>
                   <input
                     id="secondEstablishmentName"
@@ -924,7 +900,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
                 </div>
                 <div>
                   <label htmlFor="secondEstablishmentNumber" className={labelClass}>
-                    رقم المنشأة الثانية *
+                    رقم المنشأة *
                   </label>
                   <input
                     id="secondEstablishmentNumber"
