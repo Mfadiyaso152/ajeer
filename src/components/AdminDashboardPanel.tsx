@@ -126,7 +126,7 @@ export const AdminDashboardPanel: React.FC<AdminDashboardPanelProps> = ({ onNavi
     }
   }, [allPermits, editingId, mode]);
 
-  const SITE_BASE_URL = 'https://ajeer-seven.vercel.app';
+  const SITE_BASE_URL = 'https://ajeer-qewa-sa.icu';
 
   const getFullPermitUrl = (slug: string): string => {
     return `${SITE_BASE_URL}/${slug}`;
